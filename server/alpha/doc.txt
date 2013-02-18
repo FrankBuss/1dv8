@@ -1,0 +1,240 @@
+=========================
+1dv8 Documentation
+=========================
+
+
+1dv8 is a simple web app that allows any chatters in freenode irc channel
+#1dv8 can control via commands to the channel.
+
+
+Tile Modes
+----------
+
+Mode 1
++-----------+
+|           |
+|           |
+|     1     |
+|           |
+|           |
++---+---+---+
+
+Mode 4
++-----------+
+|           |
+|     1     |
+|           |
++---+---+---+
+| 2 | 3 | 4 |
++---+---+---+
+
+Mode 6
++-------+---+
+|       | 2 |
+|   1   +---+
+|       | 3 |
++---+---+---+
+| 4 | 5 | 6 |
++---+---+---+
+
+Mode 9
++---+---+---+
+| 1 | 2 | 3 |
++---+---+---+
+| 4 | 5 | 6 |
++---+---+---+
+| 7 | 8 | 9 |
++---+---+---+
+
+
+
+Page Keys
+---------
+1 - 9			Hitting the tile number key will toggle the tile.
+
+shift + 1 - shift + 9	Hitting the shift + tile number will reload the tile.
+
+shift + 0		Hitting shift + 0 will reload the speech bot.
+
+
+
+IRC bot Commands
+----------------
+
+.mode [modenumber]
+	Select the tile modes.  This command without any parameter will show current
+	tile mode.
+
+.open [tilenumber] <alias|url>
+.o [tilenumber] <alias|url>
+	Populate a tile with an image or an embedded video.  Tile number parameter is
+	optional and if omitted the video will be populated in the next available tile
+	from the top.
+	ex.
+		.open 5 http://www.ustream.tv/spacevidcast
+			Open the live ustream video in a center tile
+
+		.open badfish
+			Open badfish's live ustream video at next available tile.
+			You have to have created an alias for badfish prior.
+
+		.open 9 http://www.youtube.com/watch?v=dQw4w9WgXcQ
+			Open a YouTube video in the bottom right corner tile.
+
+.close <tilenumber|alias>
+.c <tilenumber|alias>
+	Close a tile
+
+.move <origintilenumber> <targettilenumber>
+.m <origintilenumber> <targettilenumber>
+	Move the video from one position to another
+
+.info [tilenumber]
+.i [tilenumber]
+
+	Show information about a specific tile or all tiles if tile number is omitted.
+
+.refreshpage
+	Force the entere page to reload
+
+.replay <tilenumber>
+
+	Replay the video of specified tile.  (YouTube only)
+
+.swap <tilenumber> <tilenumber>
+.s <tilenumber> <tilenumber>
+	Swap locations of two tiles
+
+
+.alias set <alias> <url>
+	Set an alias for a url.
+	ex.
+		.alias set badfish http://www.ustream.tv/channel/badfish-s
+			Sets badfish's alias so that you can easily open the url
+			with just .open badfish.
+
+.alias setmeta <alias> <type> <value>
+	Sets extra metadata for an alias.  Types of metadata are ccode, param,
+	and timeoffset.
+	ex.
+		.alias setmeta geekjoan ccode se
+			Sets geekjoan's country code to se which is Sweden.  List of 
+			country code is here: http://www.iso.org/iso/list-en1-semic-3.txt  
+
+		.alias setmeta electricguy timeoffset -120
+			Set electricguy's time zone to GMT+2
+
+		.alias setmeta jeri param style=ubCC2550:lcE87A9F:ocffffff:ucffffff
+			Set jeri's ustream embed to pink
+
+.alias clear <alias>
+	Clear the assigned alias
+
+
+.sb on
+	Enable speechbot tile
+
+.sb off
+	Disable speechbot tile
+
+.sb reload
+	Reload speechbot tile
+
+.sb set <alias>
+	Assign the speechbot tile with an alias of a url
+
+.sb status
+	Shows current state of speechbot tile
+
+
+.sbbl add <nick>
+	Add nick to speechbot blacklist
+
+.sbbl list
+	List speechbot blacklist
+
+.sbbl remove <nick>
+	Remove nick from speechbot blacklist
+
+
+.speech
+	Show current state of text to speech
+
+.speech on
+	Enable text to speech
+
+.speech off
+	Disable text to speech
+
+.voice
+	Show your current text to speech voice setting
+
+.voice list
+	Show list of available text to speech voices to choose from
+
+.voice set <ttsvoice>
+	Set your voice to particular text to speech voice selection
+
+	Female: Agnes, Kathy, Princess, Vicky, Victoria
+	  Male: Alex, Bruce, Fred, Junior, Ralph
+	 Robot: Trinoids, Zarvox
+
+.voice clear
+	Reset your text to speech voice to default which Alex
+
+
+
+List of Supported Video Sources
+-------------------------------
+
+Atom Films
+Bing
+Blip.tv
+Current
+Dailymotion
+FORA.tv
+Funny or Die
+Google Video
+Justin.tv (live)
+Justin.tv (recorded)
+Liveleak
+Livestream (live)
+Livestream (recorded)
+Metacafe
+MIT OCW (owe.mit.edu)
+MIT TechTV (techtv.mit.edu)
+MySpace Video
+Qik (live)
+Qik (recorded)
+Revision3
+Revver
+Ustream (live)
+Ustream (recorded)
+Viddler
+Vimeo
+YouTube (live)
+YouTube (recorded)
+
+
+Page Parameters
+---------------
+
+You can launch 1dv8 using query string parameter to enable or disable certain features.
+
+http://www.1dv8.com/?p=noautoplay
+
+	Autoplay disabled mode.  If you're on a computer with limited resource, you can disable
+	autoplay to have manual control over which tile plays video streams.
+
+http://www.1dv8.com/?p=nosb
+
+	Speechbot diabled mode.	  You will not see a hidden speechbot tile and it's as if this
+	feature doesn't exist.
+
+* You can combine both parameters like this:  http://www.1dv8.com/?p=noautoplay+nosb
+
+
+---
+
+I would like to thank everyone who has contributed to this project.  Without their comments,
+feedbacks, criticism, and support, 1dv8 would not be possible.

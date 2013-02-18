@@ -1,0 +1,8 @@
+.select queue index_no
+.play queue index_no
+.queue up
+.queue down
+.queue add
+.queue del
+.queue del index_no
+.queue insert index_no

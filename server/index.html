@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>1dv8</title>
+<link rel="icon" href="favicon.ico" type="image/x-icon" />
+<link href="gs.css" rel="stylesheet" type="text/css" />
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.8/jquery.min.js"></script>
+<script src="jquery.ba-bbq.min.js"></script>
+<script src="jquery.hotkeys.js"></script>
+<script src="jquery.swfobject.1-1-1.min.js"></script>
+<script src="PluginDetect_VLC.js"></script>
+<script src="swfcreate.js"></script>
+<script src="gstiles.js"></script>
+<script src="gssb.js"></script>
+<script src="gstab.js"></script>
+<script src="gsdebug.js"></script>
+<script src="http://1dv8.com:8001/socket.io/socket.io.js"></script>
+<script>
+
+// Mode 1
+// +-----------+
+// |           |
+// |           |
+// |     0     |
+// |           |
+// |           |
+// +-----------+
+
+// Mode 4
+// +-----------+
+// |           |
+// |     0     |
+// |           |
+// +---+---+---+
+// | 1 | 2 | 3 |
+// +---+---+---+
+
+// Mode 6
+// +-------+---+
+// |       | 1 |
+// |   0   +---+
+// |       | 2 |
+// +---+---+---+
+// | 3 | 4 | 5 |
+// +---+---+---+
+
+// Mode 9
+// +---+---+---+
+// | 0 | 1 | 2 |
+// +---+---+---+
+// | 3 | 4 | 5 |
+// +---+---+---+
+// | 6 | 7 | 8 |
+// +---+---+---+
+
+var CMD = new Array();
+CMD['NULL'] = 0;
+CMD['CLOSE'] = 100;
+CMD['MODE'] = 900;
+CMD['MOVE'] = 1000;
+CMD['MUTE'] = 1100;
+CMD['OPEN'] = 1200;
+CMD['PAUSE'] = 1300;
+CMD['PLAY'] = 1400;
+CMD['QUERYSTAT'] = 1450;
+CMD['REFRESHPAGE'] = 9999;
+CMD['REPLAY'] = 1500;
+CMD['SBOFF'] = 1600;
+CMD['SBON'] = 1700;
+CMD['SBOPEN'] = 1800;
+CMD['SBRELOAD'] = 1900;
+CMD['SETMETA'] = 2000;
+CMD['SWAP'] = 2100;
+CMD['UNMUTE'] = 2200;
+
+
+var URLTYPE = new Array();
+
+URLTYPE['IMAGE'] = 50;
+
+URLTYPE['ATOM'] = 100;
+URLTYPE['BING'] = 200;
+URLTYPE['BLIPTV'] = 300;
+URLTYPE['CURRENT'] = 400;
+URLTYPE['DAILYMOTION'] = 500;
+
+URLTYPE['FORATVL'] = 601;
+URLTYPE['FORATVR'] = 602;
+
+URLTYPE['FUNNYORDIE'] = 700;
+URLTYPE['GOOGLEVIDEO'] = 800;
+
+URLTYPE['JUSTINTVL'] = 1001;
+URLTYPE['JUSTINTVR'] = 1002;
+
+URLTYPE['LIVELEAK'] = 1100;
+
+URLTYPE['LIVESTREAML'] = 1201;
+URLTYPE['LIVESTREAMR'] = 1202;
+
+URLTYPE['METACAFE'] = 1300;
+URLTYPE['MITOCW'] = 1400;
+URLTYPE['MITTECHTV'] = 1500;
+URLTYPE['MYSPACE'] = 1600;
+
+URLTYPE['QIKL'] = 1701;
+URLTYPE['QIKR'] = 1702;
+
+URLTYPE['REVISION3'] = 1800;
+URLTYPE['REVVER'] = 1900;
+URLTYPE['TED'] = 2000;
+
+URLTYPE['TWITCHTVL'] = 2101;
+URLTYPE['TWITCHTVR'] = 2102;
+
+URLTYPE['USTREAML'] = 2201;
+URLTYPE['USTREAMR'] = 2202;
+
+URLTYPE['VEOH'] = 2300;
+URLTYPE['VIDDLER'] = 2400;
+URLTYPE['VIMEO'] = 2500;
+URLTYPE['YOUTUBE'] = 2600;
+
+
+
+
+
+
+
+var CIDSEED = 0;
+var CIDOFFSET = 133683284623;
+
+
+// neat hack to generate unique id
+// http://stackoverflow.com/questions/105034/how-to-create-a-guid-uuid-in-javascript
+// var clientid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+//     var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8);
+//     return v.toString(16);
+// });
+
+
+
+var p_debug = false;
+var p_noautoplay = false;
+var p_nosb = false;
+var p_vq = null;
+
+var param = $.deparam.querystring();
+if (param) {
+	if (param.hasOwnProperty('p')) {
+		paramarray = param['p'].split(' ');
+		if ($.inArray("debug", paramarray) != -1)
+			p_debug = true;
+		if ($.inArray("noautoplay", paramarray) != -1)
+			p_noautoplay = true;
+		if ($.inArray("nosb", paramarray) != -1)
+			p_nosb = true;
+	}
+	if (param.hasOwnProperty('vq')) {
+		var vqlist = new Array('240p', '360p', '480p', '720p', '1080p');
+		var vq = $.inArray(param['vq'], vqlist);
+		if (vq != -1)
+			p_vq = vq;
+	}
+}
+
+var f_ytapiready = false;
+
+function onYouTubePlayerAPIReady() {
+	f_ytapiready = true;
+	debug_append('onYouTubePlayerAPIReady() :: f_ytapiready == true');
+}
+
+var lastid = 0;
+
+var basecid_local = 0;
+var basecid = 0;
+var lastcid = 0;
+
+var f_connected = false;
+
+var id_ytapi_delayloop;
+
+function ytapi_delayloop() {
+	id_ytapi_delayloop = setInterval('init_ws()', 100);
+}
+
+function init_ws() {
+	debug_append('ready :: f_ytapiready = ' + f_ytapiready);
+	if (!f_ytapiready)
+		return;
+	clearInterval(id_ytapi_delayloop);
+
+	var wsurl = "ws://1dv8.com:8001";
+	debug_append('ready :: f_ytapiready = ' + f_ytapiready);
+
+	var socket = io.connect(wsurl);
+	socket.on('connect', function() {
+		f_connected = true;
+		statusbox_connected();
+		socket.emit('pull', { cid: lastcid });
+	});
+	socket.on('cc', function(msg) {
+		debug_append('cc :: msg = ' + msg);
+		statusbox_setcount(msg);
+	});
+	socket.on('stat', function(msg) {
+		var vlcver = PluginDetect.getVersion('VLC');
+		if (vlcver == null)
+			vlcver = 0;
+		socket.emit('stat', { h: $(window).height(), w: $(window).width(), vv: vlcver, ua: navigator.userAgent});
+	});
+	socket.on('cmd', function(msg) {
+		debug_append(':: msg = ' + msg);
+		for (var i = 0; i < msg.length; i++) {
+			debug_append(':: msg.length = ' + msg.length + ', i = ' + i);
+			var id = parseInt(msg[i]['id']);
+			if (id != 0)
+				lastid = id;
+			var cid = parseInt(msg[i]['cid']);
+			if (cid != 0 && cid > lastid)
+				lastcid = cid;
+			var type = parseInt(msg[i]['type']);
+			debug_append(':: id = ' + id + ', cid = ' + cid + ', type = ' + type);
+
+			switch (type) {
+				case CMD['NULL']:  // null command
+					lastcid = cid;
+					basecid = cid;
+					basecid_local = get_local_cid();
+					break;
+				case CMD['CLOSE']:
+					var ti = parseInt(msg[i]['ti1']);
+					debug_append('CLOSE :: ti' + ti);
+					cmd_close(parseInt(msg[i]['ti1']));
+					break;
+				case CMD['MODE']:
+					cmd_mode(parseInt(msg[i]['mode']));
+					break;
+				case CMD['MOVE']:
+					debug_append('MOVE :: ti1 = ' + parseInt(msg[i]['ti1']));
+					debug_append('MOVE :: ti2 = ' + parseInt(msg[i]['ti2']));
+					cmd_move(parseInt(msg[i]['ti1']), parseInt(msg[i]['ti2']));
+					break;
+				case CMD['MUTE']:
+					cmd_mute(parseInt(msg[i]['ti1']));
+					break;
+				case CMD['OPEN']:
+					var ti = parseInt(msg[i]['ti1']);
+					var alias = msg[i]['alias'];
+					var ccode = msg[i]['ccode'];
+					var imgurl = msg[i]['imgurl'];
+					var param = msg[i]['param'];
+					var stime = parseInt(msg[i]['stime']);
+					if (!stime)
+						stime = 0;
+					var timeoffset = parseInt(msg[i]['timeoffset']);
+					if (isNaN(timeoffset))
+						timeoffset = -1440;
+					var title = msg[i]['title'];
+					var url = msg[i]['url'];
+					var urltype = parseInt(msg[i]['urltype']);
+					var vid = msg[i]['vid'];
+					var vol = msg[i]['vol'];
+					debug_append('OPEN :: urltype = ' + urltype);
+					if (p_noautoplay)
+						cmd_open_noautoplay(ti, alias, ccode, cid, imgurl, param, stime, timeoffset, title, url, urltype, vid, vol);
+					else {
+						if (urltype == URLTYPE['IMAGE'])
+							cmd_open_image(ti, alias, ccode, cid, imgurl, param, stime, timeoffset, title, url, urltype, vid, vol);
+						else if (urltype == URLTYPE['YOUTUBE'])
+							cmd_open_yt(ti, alias, ccode, cid, imgurl, param, stime, timeoffset, title, url, urltype, vid, vol);
+						else
+							cmd_open(ti, alias, ccode, cid, imgurl, param, stime, timeoffset, title, url, urltype, vid, vol);
+					}
+					break;
+				case CMD['REFRESHPAGE']:
+					cmd_refreshpage();
+					break;
+				case CMD['REPLAY']:
+					var ti = parseInt(msg[i]['ti1']);
+					debug_append('REPLAY :: cid = ' + cid + ', ti = ' + ti);
+					tileinfo[ti]['cid'] = cid;
+					if (tileinfo[ti]['urltype'] == URLTYPE['YOUTUBE']) {
+						debug_append('REPLAY :: urltype == YOUTUBE');
+						cmd_replay(ti);
+					}
+					break;
+				case CMD['SBOFF']:
+					if (p_nosb)
+						break;
+					sb_off();
+					break;
+				case CMD['SBON']:
+					if (p_nosb)
+						break;
+					sb_on();
+					break;
+				case CMD['SBOPEN']:
+					if (p_nosb)
+						break;
+					sb_open(msg[i]['alias'], msg[i]['url'], parseInt(msg[i]['urltype']), msg[i]['vid']);
+					break;
+				case CMD['SBRELOAD']:
+					if (p_nosb)
+						break;
+					sb_reload();
+					break;
+				case CMD['SETMETA']:
+					var ti = parseInt(msg[i]['ti1']);
+					var ccode = msg[i]['ccode'];
+					var param = msg[i]['param'];
+					var timeoffset = parseInt(msg[i]['timeoffset']);
+					if (isNaN(timeoffset))
+						timeoffset = -1440;
+ 					cmd_setmeta(ti, ccode, param, timeoffset);
+					break;
+				case CMD['SWAP']:
+					debug_append('SWAP :: ti1 = ' + parseInt(msg[i]['ti1']));
+					debug_append('SWAP :: ti2 = ' + parseInt(msg[i]['ti2']));
+					cmd_swap(parseInt(msg[i]['ti1']), parseInt(msg[i]['ti2']));
+					break;
+				case CMD['UNMUTE']:
+					cmd_unmute(parseInt(msg[i]['ti1']));
+					break;
+				default:
+					break;
+			}
+		}
+	});
+
+	socket.on('disconnect', function() {
+		f_connected = false;
+		statusbox_disconnected();
+	});
+}
+
+$(document).ready(function() {
+	// YouTube API needs to be loaded dynamically
+	var tag = document.createElement('script');
+	tag.src = 'http://www.youtube.com/player_api';
+	var firstScriptTag = document.getElementsByTagName('script')[0];
+	firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+	$(document).bind('keydown', '1', function() { toggle_tile(0); return false; });
+	$(document).bind('keydown', '2', function() { toggle_tile(1); return false; });
+	$(document).bind('keydown', '3', function() { toggle_tile(2); return false; });
+	$(document).bind('keydown', '4', function() { toggle_tile(3); return false; });
+	$(document).bind('keydown', '5', function() { toggle_tile(4); return false; });
+	$(document).bind('keydown', '6', function() { toggle_tile(5); return false; });
+	$(document).bind('keydown', '7', function() { toggle_tile(6); return false; });
+	$(document).bind('keydown', '8', function() { toggle_tile(7); return false; });
+	$(document).bind('keydown', '9', function() { toggle_tile(8); return false; });
+
+	$(document).bind('keydown', 'shift+1', function() { cmd_reload(0); return false; });
+	$(document).bind('keydown', 'shift+2', function() { cmd_reload(1); return false; });
+	$(document).bind('keydown', 'shift+3', function() { cmd_reload(2); return false; });
+	$(document).bind('keydown', 'shift+4', function() { cmd_reload(3); return false; });
+	$(document).bind('keydown', 'shift+5', function() { cmd_reload(4); return false; });
+	$(document).bind('keydown', 'shift+6', function() { cmd_reload(5); return false; });
+	$(document).bind('keydown', 'shift+7', function() { cmd_reload(6); return false; });
+	$(document).bind('keydown', 'shift+8', function() { cmd_reload(7); return false; });
+	$(document).bind('keydown', 'shift+9', function() { cmd_reload(8); return false; });
+
+	$(document).bind('keydown', 'shift+0', function() { sb_reload(); return false; });
+
+        $(document).bind('keydown', 'shift+b', function() { debug_breakpoint(); return false; });
+        $(document).bind('keydown', 'shift+d', function() { debug_toggle(); return false; });
+        $(document).bind('keydown', 'shift+c', function() { debug_clear(); return false; });
+        $(document).bind('keydown', 'shift+w', function() { debug_windowsize(); return false; });
+        $(document).bind('keydown', 'shift+n', function() { debug_nicklist(); return false; });
+        $(document).bind('keydown', 'shift+q', function() { debug_q(); return false; });
+        $(document).bind('keydown', 'shift+w', function() { debug_w(); return false; });
+        $(document).bind('keydown', 'shift+e', function() { debug_e(); return false; });
+
+
+	// handle_resize() is in gstab.js
+	$(window).resize(function () { handle_resize(); });
+
+
+	init_sptab();
+	init_sb();
+	init_debug();
+
+	$('#sptab0').click(function() { select_tab('0'); });
+	$('#sptabcmd').click(function() { select_tab('cmd'); });
+	$('#sptabdebug').click(function() { select_tab('debug'); });
+
+	handle_resize();
+
+	timeoffset_timerloop();
+
+	// this is to delay socket init until YouTube API is ready
+	ytapi_delayloop();
+});
+
+</script>
+</head>
+<body>
+
+<div id="t0" class="tile"><div id="tn0" class="tile-number"></div><div id="th0" class="tile-header"></div><div id="ta0" class="tile-action"><img id="tai0" src="" /></div><div id="tt0" class="tile-time"></div><div id="tf0" class="tile-flag"><img id="tfi0" class="tile-flag-img" src="" /></div><div id="tv0" class="tile-view"></div></div>
+<div id="t1" class="tile"><div id="tn1" class="tile-number"></div><div id="th1" class="tile-header"></div><div id="ta1" class="tile-action"><img id="tai1" src="" /></div><div id="tt1" class="tile-time"></div><div id="tf1" class="tile-flag"><img id="tfi1" class="tile-flag-img" src="" /></div><div id="tv1" class="tile-view"></div></div>
+<div id="t2" class="tile"><div id="tn2" class="tile-number"></div><div id="th2" class="tile-header"></div><div id="ta2" class="tile-action"><img id="tai2" src="" /></div><div id="tt2" class="tile-time"></div><div id="tf2" class="tile-flag"><img id="tfi2" class="tile-flag-img" src="" /></div><div id="tv2" class="tile-view"></div></div>
+<div id="t3" class="tile"><div id="tn3" class="tile-number"></div><div id="th3" class="tile-header"></div><div id="ta3" class="tile-action"><img id="tai3" src="" /></div><div id="tt3" class="tile-time"></div><div id="tf3" class="tile-flag"><img id="tfi3" class="tile-flag-img" src="" /></div><div id="tv3" class="tile-view"></div></div>
+<div id="t4" class="tile"><div id="tn4" class="tile-number"></div><div id="th4" class="tile-header"></div><div id="ta4" class="tile-action"><img id="tai4" src="" /></div><div id="tt4" class="tile-time"></div><div id="tf4" class="tile-flag"><img id="tfi4" class="tile-flag-img" src="" /></div><div id="tv4" class="tile-view"></div></div>
+<div id="t5" class="tile"><div id="tn5" class="tile-number"></div><div id="th5" class="tile-header"></div><div id="ta5" class="tile-action"><img id="tai5" src="" /></div><div id="tt5" class="tile-time"></div><div id="tf5" class="tile-flag"><img id="tfi5" class="tile-flag-img" src="" /></div><div id="tv5" class="tile-view"></div></div>
+<div id="t6" class="tile"><div id="tn6" class="tile-number"></div><div id="th6" class="tile-header"></div><div id="ta6" class="tile-action"><img id="tai6" src="" /></div><div id="tt6" class="tile-time"></div><div id="tf6" class="tile-flag"><img id="tfi6" class="tile-flag-img" src="" /></div><div id="tv6" class="tile-view"></div></div>
+<div id="t7" class="tile"><div id="tn7" class="tile-number"></div><div id="th7" class="tile-header"></div><div id="ta7" class="tile-action"><img id="tai7" src="" /></div><div id="tt7" class="tile-time"></div><div id="tf7" class="tile-flag"><img id="tfi7" class="tile-flag-img" src="" /></div><div id="tv7" class="tile-view"></div></div>
+<div id="t8" class="tile"><div id="tn8" class="tile-number"></div><div id="th8" class="tile-header"></div><div id="ta8" class="tile-action"><img id="tai8" src="" /></div><div id="tt8" class="tile-time"></div><div id="tf8" class="tile-flag"><img id="tfi8" class="tile-flag-img" src="" /></div><div id="tv8" class="tile-view"></div></div>
+
+<div id="sbreloadbutton"><img id="sbreloadimg" src="" /></div>
+<div id="sbcontainer"><div id="sb"></div></div>
+
+<div id="sp">
+<div id="sptitle">1dv8</div>
+<div id="spsubtitle1">IRC controlled video streams</div>
+<div id="spsubtitle2">#1dv8 @ irc.afternet.org</div>
+
+<ol id="sptabgroup">
+<li id="sptab0" class="sptab">?</li>
+<li id="sptabcmd" class="sptab">Commands</li>
+<li id="sptabdebug" class="sptab">Debug</li>
+</ol>
+
+<div id="sptab0content" class="sptabcontent">
+<div class="splinktext"><a href="irc://irc.afternet.org/#1dv8">irc://irc.afternet.org/#1dv8</a> is our IRC channel</div>
+</div>
+
+<div id="sptabcmdcontent" class="sptabcontent">
+<div class="spdockey">1 - 9</div>
+<div class="spdocdesc">disable / enable tile</div>
+
+<div class="spdockey">shift 0 - shift 9</div>
+<div class="spdocdesc">reload tile (0 for speech bot)</div>
+
+
+<div class="spdoccmd">.mode [mode#]</div>
+<div class="spdocdesc">show / select tile mode</div>
+
+<div class="spdoccmd">.open [tile#] &lt;alias|url&gt;</div>
+<div class="spdocdesc">populate tile with url or alias</div>
+
+<div class="spdoccmd">.close &lt;tile#|alias&gt;</div>
+<div class="spdocdesc">close a tile</div>
+
+<div class="spdoccmd">.move &lt;tile#&gt; &lt;tile#&gt;</div>
+<div class="spdocdesc">move tile's location</div>
+
+<div class="spdoccmd">.swap &lt;tile#&gt; &lt;tile#&gt;</div>
+<div class="spdocdesc">swap location of two tiles</div>
+
+<div class="spdoccmd">.info [tile#]</div>
+<div class="spdocdesc">show info about specified tile</div>
+
+<div class="spdoccmd">.refreshpage</div>
+<div class="spdocdesc">force the entere page to reload</div>
+
+<div class="spdoccmd">.replay &lt;tile#|alias&gt;</div>
+<div class="spdocdesc">replay specified tile (only YouTube)</div>
+
+<div class="spdoccmd">.alias set &lt;alias&gt; &lt;url&gt;</div>
+<div class="spdocdesc">set an alias for a url</div>
+
+<div class="spdoccmd">.alias setmeta &lt;alias&gt; &lt;type&gt; &lt;value&gt;</div>
+<div class="spdocdesc">set extra metadata for an alias</div>
+
+<div class="spdoccmd">.alias clear &lt;alias&gt;</div>
+<div class="spdocdesc">clear alias</div>
+
+<div class="spdoccmd">.sb &lt;'on'|'off'|'status'&gt;</div>
+<div class="spdocdesc">toggle speechbot or show status</div>
+
+<div class="spdoccmd">.sb reload</div>
+<div class="spdocdesc">force speechbot to reload</div>
+
+<div class="spdoccmd">.mute &lt;tile#&gt;</div>
+<div class="spdocdesc">mute tile audio (only YouTube)</div>
+
+<div class="spdoccmd">.unmute &lt;tile#&gt;</div>
+<div class="spdocdesc">unmute tile audio (only YouTube)</div>
+
+</div>
+
+<div id="sptabdebugcontent" class="sptabcontent">
+Debug
+</div>
+
+</div>
+
+<div id="statusbox"></div>
+
+</body>
+</html>

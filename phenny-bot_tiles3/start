@@ -1,0 +1,36 @@
+#!/bin/bash
+
+## Functions
+
+start_it()
+{
+phenny &
+}
+
+stop_it()
+{
+echo "----------------------------------------"
+echo "PS List"
+ps aux | grep phenny
+echo "Enter processes to kill or enter to start."
+read ps_list
+if [ "$ps_list" != "" ];then
+    echo "kill -9 $ps_list (y/N)"
+    read key
+    if [ "$key" = "y" ];then
+        kill -9 $ps_list
+        echo ""
+        ps aux | grep phenny
+    fi
+fi
+}
+
+## MAIN
+
+stop_it
+echo ""
+echo "Start the bot (y/N)"
+read key
+if [ "$key" = "y" ];then
+    start_it
+fi
